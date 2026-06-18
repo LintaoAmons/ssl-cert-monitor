@@ -1,0 +1,40 @@
+name: SSL Certificate Monitor
+
+on:
+  schedule:
+    # Run daily at 09:00 UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Report mode: alert (only expiring) or full (all certs)'
+        required: false
+        default: 'alert'
+        type: choice
+        options:
+          - alert
+          - full
+
+env:
+  CERT_DIR: certs  # Change this to your certificate directory path
+
+jobs:
+  check-certs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run certificate check
+        env:
+          ACS_CONNECTION_STRING: ${{ secrets.ACS_CONNECTION_STRING }}
+          SENDER_ADDRESS: ${{ secrets.SENDER_ADDRESS }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          ALERT_DAYS: '90'
+          WARNING_DAYS: '30'
+          CRITICAL_DAYS: '14'
+        run: |
+          chmod +x check-certs.sh send-email-acs.sh
+          MODE="${{ github.event.inputs.mode || 'alert' }}"
+          bash check-certs.sh --mode "$MODE" "$CERT_DIR"
