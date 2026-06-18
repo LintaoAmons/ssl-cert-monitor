@@ -176,7 +176,7 @@ build_html_table() {
   echo "$html"
 }
 
-build_text_table() {
+build_gchat_text() {
   local text=""
 
   while [ $# -gt 0 ]; do
@@ -189,7 +189,9 @@ build_text_table() {
       WARNING)  icon="🟡" ;;
       OK)       icon="🟢" ;;
     esac
-    text="${text}${icon} <b>${e_status}</b> | ${e_file} | ${e_cn} | ${e_days}d | ${e_date}\n"
+    text="${text}${icon} *${e_status}* — \`${e_file}\` (${e_days}d)\n"
+    text="${text}      SAN: ${e_cn}\n"
+    text="${text}      Expires: ${e_date}\n"
   done
 
   echo -e "$text"
@@ -229,8 +231,8 @@ ${table_rows}
   # --- Google Chat webhook ---
   if [ -n "${GCHAT_WEBHOOK_URL:-}" ]; then
     local gchat_text
-    gchat_text=$(build_text_table "${send_entries[@]}")
-    local gchat_body="${summary}\n\n${gchat_text}\nThresholds: Critical=${CRITICAL_DAYS}d, Warning=${WARNING_DAYS}d, Alert=${ALERT_DAYS}d"
+    gchat_text=$(build_gchat_text "${send_entries[@]}")
+    local gchat_body="${summary}\n\n${gchat_text}Thresholds: Critical=${CRITICAL_DAYS}d, Warning=${WARNING_DAYS}d, Alert=${ALERT_DAYS}d"
 
     bash "${SCRIPT_DIR}/send-gchat.sh" "$subject" "$(echo -e "$gchat_body")"
     sent=true
