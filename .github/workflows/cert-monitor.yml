@@ -1,9 +1,9 @@
 name: SSL Certificate Monitor
 
 on:
-  schedule:
-    # Run daily at 09:00 UTC
-    - cron: '0 9 * * *'
+  # schedule:
+  #   # Run daily at 09:00 UTC
+  #   - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       mode:
