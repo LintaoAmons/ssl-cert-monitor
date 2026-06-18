@@ -84,8 +84,15 @@ check_cert() {
     return
   }
 
-  local cn
-  cn=$(echo "$cert_info" | grep "subject" | sed 's/.*CN *= *//')
+  # Extract SAN (preferred) with fallback to CN
+  local san
+  san=$(openssl x509 -inform DER -in "$cert_file" -noout -text 2>/dev/null \
+    | grep -A1 "Subject Alternative Name" | tail -1 | sed 's/^ *//' | tr -d '\n')
+  if [ -z "$san" ]; then
+    # Fallback to CN if no SAN
+    san=$(echo "$cert_info" | grep "subject" | sed 's/.*CN *= *//')
+  fi
+
   local end_date_str
   end_date_str=$(echo "$cert_info" | grep "notAfter" | cut -d= -f2)
 
@@ -112,14 +119,14 @@ check_cert() {
     color="$GREEN"
   fi
 
-  printf "  %-25s CN=%-35s %b%-10s%b %3d days left  (expires %s)\n" \
-    "$filename" "$cn" "$color" "[$status]" "$NC" "$days_left" "$end_date_str"
+  printf "  %-25s SAN=%-45s %b%-10s%b %3d days left  (expires %s)\n" \
+    "$filename" "$san" "$color" "[$status]" "$NC" "$days_left" "$end_date_str"
 
   TOTAL_COUNT=$((TOTAL_COUNT + 1))
-  RESULTS+=("${status}|${days_left}|${filename}|${cn}|${end_date_str}")
+  RESULTS+=("${status}|${days_left}|${filename}|${san}|${end_date_str}")
 
   if [ "$days_left" -le "$ALERT_DAYS" ]; then
-    ALERT_ENTRIES+=("${status}|${days_left}|${filename}|${cn}|${end_date_str}")
+    ALERT_ENTRIES+=("${status}|${days_left}|${filename}|${san}|${end_date_str}")
     ALERT_COUNT=$((ALERT_COUNT + 1))
   fi
 }
@@ -173,7 +180,7 @@ send_report() {
 <p>Scan time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')</p>
 <p>${summary}</p>
 <table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:monospace'>
-<tr style='background:#333;color:#fff'><th>Status</th><th>File</th><th>CN</th><th>Days Left</th><th>Expires</th></tr>
+<tr style='background:#333;color:#fff'><th>Status</th><th>File</th><th>SAN</th><th>Days Left</th><th>Expires</th></tr>
 ${table_rows}
 </table>
 <p style='color:gray;font-size:0.9em'>Thresholds: Critical=${CRITICAL_DAYS}d, Warning=${WARNING_DAYS}d, Alert=${ALERT_DAYS}d</p>"
