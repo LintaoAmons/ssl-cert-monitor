@@ -28,7 +28,7 @@ ACCESS_KEY=$(echo "$ACS_CONNECTION_STRING" | sed -n 's/.*accesskey=\(.*\)/\1/Ip'
 HOST=$(echo "$ENDPOINT" | sed 's|https://||;s|http://||')
 
 # Convert access key from base64 to hex (handles binary keys with null bytes)
-ACCESS_KEY_HEX=$(echo "$ACCESS_KEY" | openssl base64 -d -A | xxd -p | tr -d '\n')
+ACCESS_KEY_HEX=$(echo "$ACCESS_KEY" | openssl base64 -d -A | od -An -tx1 | tr -d ' \n')
 
 hmac_sha256() {
   openssl dgst -sha256 -mac hmac -macopt "hexkey:${ACCESS_KEY_HEX}" -binary | openssl base64 -A
