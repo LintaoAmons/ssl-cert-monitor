@@ -8,14 +8,19 @@
 #   --mode alert    Only report certs expiring within ALERT_DAYS (default)
 #   --mode full     Full scan report — all certs regardless of status
 #
-# Environment variables:
-#   ACS_CONNECTION_STRING — Azure Communication Services connection string
-#   ALERT_EMAIL_TO        — recipient email address
-#   SENDER_ADDRESS        — sender email (e.g. DoNotReply@xxx.azurecomm.net)
+# Notification channels (set env vars to enable, can use both):
+#   Email (ACS):
+#     ACS_CONNECTION_STRING — Azure Communication Services connection string
+#     ALERT_EMAIL_TO        — recipient email address
+#     SENDER_ADDRESS        — sender email (e.g. DoNotReply@xxx.azurecomm.net)
+#   Google Chat:
+#     GCHAT_WEBHOOK_URL     — Google Chat space webhook URL
+#
+# Other env vars:
 #   ALERT_DAYS            — threshold for alert mode (default: 90)
 #   WARNING_DAYS          — days threshold for warning status (default: 30)
 #   CRITICAL_DAYS         — days threshold for critical status (default: 14)
-#   DRY_RUN               — set to "true" to skip actual email sending
+#   DRY_RUN               — set to "true" to skip actual sending
 
 set -euo pipefail
 
@@ -171,12 +176,44 @@ build_html_table() {
   echo "$html"
 }
 
+build_text_table() {
+  local text=""
+
+  while [ $# -gt 0 ]; do
+    local entry="$1"; shift
+    IFS='|' read -r e_status e_days e_file e_cn e_date <<< "$entry"
+    local icon
+    case "$e_status" in
+      EXPIRED)  icon="🔴" ;;
+      CRITICAL) icon="🔴" ;;
+      WARNING)  icon="🟡" ;;
+      OK)       icon="🟢" ;;
+    esac
+    text="${text}${icon} <b>${e_status}</b> | ${e_file} | ${e_cn} | ${e_days}d | ${e_date}\n"
+  done
+
+  echo -e "$text"
+}
+
 send_report() {
   local subject="$1"
   local table_rows="$2"
   local summary="$3"
+  local send_entries=("${@:4}")
 
-  local html_body="<h2>SSL Certificate Expiry Report</h2>
+  local sent=false
+
+  # --- Email (ACS) ---
+  if [ "$DRY_RUN" = "true" ]; then
+    echo ">> [DRY RUN] Would send:"
+    echo "   Email to:  ${ALERT_EMAIL_TO:-<not set>}"
+    echo "   GChat:     ${GCHAT_WEBHOOK_URL:+configured}${GCHAT_WEBHOOK_URL:-<not set>}"
+    echo "   Subject:   $subject"
+    return 0
+  fi
+
+  if [ -n "${ACS_CONNECTION_STRING:-}" ] && [ -n "${ALERT_EMAIL_TO:-}" ]; then
+    local html_body="<h2>SSL Certificate Expiry Report</h2>
 <p>Scan time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')</p>
 <p>${summary}</p>
 <table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:monospace'>
@@ -185,22 +222,24 @@ ${table_rows}
 </table>
 <p style='color:gray;font-size:0.9em'>Thresholds: Critical=${CRITICAL_DAYS}d, Warning=${WARNING_DAYS}d, Alert=${ALERT_DAYS}d</p>"
 
-  if [ "$DRY_RUN" = "true" ]; then
-    echo ">> [DRY RUN] Would send email:"
-    echo "   To:      ${ALERT_EMAIL_TO:-<not set>}"
-    echo "   Subject: $subject"
-    echo "   Rows:    $(echo "$table_rows" | grep -c '<tr>')"
-    return 0
+    bash "${SCRIPT_DIR}/send-email-acs.sh" "$ALERT_EMAIL_TO" "$subject" "$html_body"
+    sent=true
   fi
 
-  if [ -z "${ACS_CONNECTION_STRING:-}" ] || [ -z "${ALERT_EMAIL_TO:-}" ]; then
-    echo ">> [SKIP] Email not sent — missing environment variables:"
-    [ -z "${ACS_CONNECTION_STRING:-}" ] && echo "   - ACS_CONNECTION_STRING"
-    [ -z "${ALERT_EMAIL_TO:-}" ]        && echo "   - ALERT_EMAIL_TO"
+  # --- Google Chat webhook ---
+  if [ -n "${GCHAT_WEBHOOK_URL:-}" ]; then
+    local gchat_text
+    gchat_text=$(build_text_table "${send_entries[@]}")
+    local gchat_body="${summary}\n\n${gchat_text}\nThresholds: Critical=${CRITICAL_DAYS}d, Warning=${WARNING_DAYS}d, Alert=${ALERT_DAYS}d"
+
+    bash "${SCRIPT_DIR}/send-gchat.sh" "$subject" "$(echo -e "$gchat_body")"
+    sent=true
+  fi
+
+  if [ "$sent" = false ]; then
+    echo ">> [SKIP] No notification channel configured. Set ACS_CONNECTION_STRING+ALERT_EMAIL_TO and/or GCHAT_WEBHOOK_URL."
     return 1
   fi
-
-  bash "${SCRIPT_DIR}/send-email-acs.sh" "$ALERT_EMAIL_TO" "$subject" "$html_body"
 }
 
 # --- Send based on mode ---
@@ -211,7 +250,7 @@ if [ "$MODE" = "full" ]; then
   TABLE=$(build_html_table "${RESULTS[@]}")
   SUBJECT="[SSL Monitor] Full Scan Report — ${TOTAL_COUNT} certificate(s)"
   SUMMARY="Full scan: ${TOTAL_COUNT} certificate(s), ${ALERT_COUNT} expiring within ${ALERT_DAYS} days."
-  send_report "$SUBJECT" "$TABLE" "$SUMMARY"
+  send_report "$SUBJECT" "$TABLE" "$SUMMARY" "${RESULTS[@]}"
 
 elif [ "$MODE" = "alert" ]; then
   if [ "$ALERT_COUNT" -gt 0 ]; then
@@ -222,7 +261,7 @@ elif [ "$MODE" = "alert" ]; then
       SUBJECT="[CRITICAL] ${SUBJECT}"
     fi
     SUMMARY="${ALERT_COUNT} of ${TOTAL_COUNT} certificate(s) expire within ${ALERT_DAYS} days."
-    send_report "$SUBJECT" "$TABLE" "$SUMMARY"
+    send_report "$SUBJECT" "$TABLE" "$SUMMARY" "${ALERT_ENTRIES[@]}"
   else
     echo ">> All certificates are healthy (none expiring within ${ALERT_DAYS} days). No alert sent."
   fi

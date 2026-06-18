@@ -1,6 +1,6 @@
 # SSL Certificate Monitor
 
-Monitor SSL certificate (.cer) expiry and send email alerts via Azure Communication Services.
+Monitor SSL certificate (.cer) expiry and send alerts via email (Azure Communication Services) and/or Google Chat webhook.
 
 Pure bash — only requires `bash`, `curl`, and `openssl`. No Python or SDK needed.
 
@@ -13,40 +13,54 @@ Pure bash — only requires `bash`, `curl`, and `openssl`. No Python or SDK need
 # Full mode — all certs in a complete report
 ./check-certs.sh --mode full /path/to/certs
 
-# Dry run — preview without sending email
+# Dry run — preview without sending
 DRY_RUN=true ./check-certs.sh --mode alert /path/to/certs
 ```
 
 ## Report Modes
 
 ### Alert Mode (`--mode alert`)
-Only includes certificates expiring within `ALERT_DAYS` (default 90 days). Sends no email if all certs are healthy. Reports show SAN (Subject Alternative Name) for each certificate.
+Only includes certificates expiring within `ALERT_DAYS` (default 90 days). Sends nothing if all certs are healthy.
 
 ### Full Mode (`--mode full`)
 Includes all certificates regardless of status. Always sends a report.
 
-## Environment Variables
+## Notification Channels
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ACS_CONNECTION_STRING` | Yes* | — | Azure Communication Services connection string |
-| `SENDER_ADDRESS` | Yes* | — | Sender email (e.g. `DoNotReply@xxx.azurecomm.net`) |
-| `ALERT_EMAIL_TO` | Yes* | — | Recipient email address |
-| `ALERT_DAYS` | No | `90` | Alert mode threshold (days) |
-| `WARNING_DAYS` | No | `30` | Warning status threshold (days) |
-| `CRITICAL_DAYS` | No | `14` | Critical status threshold (days) |
-| `DRY_RUN` | No | `false` | Set `true` to skip email sending |
+Both channels can be used simultaneously. Set the relevant env vars to enable.
 
-*Required when `DRY_RUN` is not `true`.
+### Email (Azure Communication Services)
+
+| Variable | Description |
+|----------|-------------|
+| `ACS_CONNECTION_STRING` | ACS connection string |
+| `SENDER_ADDRESS` | Sender email (e.g. `DoNotReply@xxx.azurecomm.net`) |
+| `ALERT_EMAIL_TO` | Recipient email address |
+
+### Google Chat Webhook
+
+| Variable | Description |
+|----------|-------------|
+| `GCHAT_WEBHOOK_URL` | Google Chat space webhook URL |
+
+### Other
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALERT_DAYS` | `90` | Alert mode threshold (days) |
+| `WARNING_DAYS` | `30` | Warning status threshold (days) |
+| `CRITICAL_DAYS` | `14` | Critical status threshold (days) |
+| `DRY_RUN` | `false` | Set `true` to skip sending |
 
 ## GitHub Actions
 
-The included workflow (`.github/workflows/cert-monitor.yml`) runs daily at 09:00 UTC and can be triggered manually with mode selection.
+The included workflow runs daily at 09:00 UTC and can be triggered manually with mode selection.
 
 Add these as repository secrets (Settings → Secrets and variables → Actions):
 - `ACS_CONNECTION_STRING` — Azure Communication Services connection string
 - `SENDER_ADDRESS` — e.g. `DoNotReply@xxx.azurecomm.net`
 - `ALERT_EMAIL_TO` — recipient email address
+- `GCHAT_WEBHOOK_URL` — Google Chat space webhook URL (optional)
 
 ## Azure Communication Services Setup
 
@@ -55,6 +69,12 @@ Add these as repository secrets (Settings → Secrets and variables → Actions)
 3. Provision a free Azure managed domain (Provision domains → Add a free Azure managed domain)
 4. Connect the domain to the Communication Services resource (Email → Domains → Connect domain)
 5. Copy the **Connection String** from Communication Services → Keys
+
+## Google Chat Webhook Setup
+
+1. Open the Google Chat space → Apps & integrations → Webhooks
+2. Create a webhook, copy the URL
+3. Set as `GCHAT_WEBHOOK_URL`
 
 ## Mock Certificates
 

@@ -31,10 +31,11 @@ jobs:
           ACS_CONNECTION_STRING: ${{ secrets.ACS_CONNECTION_STRING }}
           SENDER_ADDRESS: ${{ secrets.SENDER_ADDRESS }}
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
           ALERT_DAYS: '90'
           WARNING_DAYS: '30'
           CRITICAL_DAYS: '14'
         run: |
-          chmod +x check-certs.sh send-email-acs.sh
+          chmod +x check-certs.sh send-email-acs.sh send-gchat.sh
           MODE="${{ github.event.inputs.mode || 'alert' }}"
           bash check-certs.sh --mode "$MODE" "$CERT_DIR"
