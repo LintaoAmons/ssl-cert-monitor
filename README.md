@@ -54,7 +54,7 @@ Both channels can be used simultaneously. Set the relevant env vars to enable.
 
 ## GitHub Actions
 
-The included workflow runs daily at 09:00 UTC and can be triggered manually with mode selection.
+The included workflow can be triggered manually with mode selection (schedule disabled by default, uncomment to enable).
 
 Add these as repository secrets (Settings → Secrets and variables → Actions):
 - `ACS_CONNECTION_STRING` — Azure Communication Services connection string
@@ -64,11 +64,33 @@ Add these as repository secrets (Settings → Secrets and variables → Actions)
 
 ## Azure Communication Services Setup
 
-1. Create a **Communication Services** resource in Azure Portal
+### Option A: Terraform (recommended)
+
+```bash
+cd infra
+terraform init
+terraform apply -var="subscription_id=YOUR_SUBSCRIPTION_ID"
+
+# Get the values for your secrets
+terraform output -raw connection_string   # → ACS_CONNECTION_STRING
+terraform output sender_address           # → SENDER_ADDRESS
+```
+
+This creates all required Azure resources: Communication Services, Email Communication Services, Azure Managed Domain, and the domain association.
+
+### Option B: Azure Portal (manual)
+
+1. Create a **Communication Services** resource
 2. Create an **Email Communication Services** resource
 3. Provision a free Azure managed domain (Provision domains → Add a free Azure managed domain)
 4. Connect the domain to the Communication Services resource (Email → Domains → Connect domain)
 5. Copy the **Connection String** from Communication Services → Keys
+
+### Pricing
+
+ACS Email is pay-as-you-go with no free tier:
+- **$0.00025/email** + **$0.00012/MB** data transfer
+- For certificate monitoring (~1 alert/day): **~$0.01/month**
 
 ## Google Chat Webhook Setup
 
