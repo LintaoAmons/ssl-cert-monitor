@@ -5,6 +5,15 @@ terraform {
       version = "~> 4.0"
     }
   }
+
+  # Default: local backend (terraform.tfstate in working directory)
+  # For team use, configure a remote backend:
+  # backend "azurerm" {
+  #   resource_group_name  = "rg-terraform-state"
+  #   storage_account_name = "yourstateaccount"
+  #   container_name       = "tfstate"
+  #   key                  = "ssl-cert-monitor.tfstate"
+  # }
 }
 
 provider "azurerm" {
